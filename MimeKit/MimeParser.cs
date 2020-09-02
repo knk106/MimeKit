@@ -25,17 +25,18 @@
 //
 
 using System;
-using System.IO;
-using System.Text;
-using System.Threading;
-using System.Diagnostics;
 using System.Collections;
 using System.Collections.Generic;
-
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
 using MimeKit.IO;
 using MimeKit.Utils;
 
-namespace MimeKit {
+namespace MimeKit
+{
 	enum BoundaryType
 	{
 		None,
@@ -573,9 +574,9 @@ namespace MimeKit {
 
 		int ReadAhead (int atleast, int save, CancellationToken cancellationToken)
 		{
-			int nread, left, start, end;
+			int nread;
 
-			if (!AlignReadAheadBuffer (atleast, save, out left, out start, out end))
+			if (!AlignReadAheadBuffer (atleast, save, out int left, out int start, out int end))
 				return left;
 
 			// use the cancellable stream interface if available...
@@ -694,7 +695,7 @@ namespace MimeKit {
 #endif
 		}
 
-		unsafe bool StepMboxMarker (byte *inbuf, ref int left)
+		unsafe bool StepMboxMarker (byte* inbuf, ref int left)
 		{
 			byte* inptr = inbuf + inputIndex;
 			byte* inend = inbuf + inputEnd;
@@ -706,8 +707,11 @@ namespace MimeKit {
 				byte* start = inptr;
 
 				// scan for the end of the line
-				while (*inptr != (byte) '\n')
+				string text = "";
+				while (*inptr != (byte) '\n') {
+					text += (char) *inptr;
 					inptr++;
+				}
 
 				var markerLength = (int) (inptr - start);
 
@@ -730,7 +734,7 @@ namespace MimeKit {
 				lineBeginOffset = GetOffset (inputIndex);
 				lineNumber++;
 
-				if (markerLength >= 5 && IsMboxMarker (start)) {
+				if (markerLength >= 5 && IsMboxMarker (start) && IsValidMboxLine (text)) {
 					mboxMarkerOffset = GetOffset (startIndex);
 					mboxMarkerLength = markerLength;
 
@@ -812,7 +816,7 @@ namespace MimeKit {
 			return c.IsBlank ();
 		}
 
-		static unsafe bool IsEoln (byte *text)
+		static unsafe bool IsEoln (byte* text)
 		{
 			if (*text == (byte) '\r')
 				text++;
@@ -821,7 +825,7 @@ namespace MimeKit {
 		}
 
 		unsafe bool StepHeaders (byte* inbuf, ref bool scanningFieldName, ref bool checkFolded, ref bool midline,
-		                         ref bool blank, ref bool valid, ref int left)
+								 ref bool blank, ref bool valid, ref int left)
 		{
 			byte* inptr = inbuf + inputIndex;
 			byte* inend = inbuf + inputEnd;
@@ -1228,7 +1232,7 @@ namespace MimeKit {
 			int boundaryLength = final ? bounds[0].FinalLength : bounds[0].Length;
 			byte* start = inbuf + inputIndex;
 			byte* inend = inbuf + inputEnd;
-			byte *inptr = start;
+			byte* inptr = start;
 
 			*inend = (byte) '\n';
 
@@ -1492,7 +1496,7 @@ namespace MimeKit {
 			rfc822.Message = message;
 
 			var endOffset = GetEndOffset (inputIndex);
-			messageArgs.HeadersEndOffset = entityArgs.HeadersEndOffset = Math.Min(entityArgs.HeadersEndOffset, endOffset);
+			messageArgs.HeadersEndOffset = entityArgs.HeadersEndOffset = Math.Min (entityArgs.HeadersEndOffset, endOffset);
 			messageArgs.EndOffset = entityArgs.EndOffset = endOffset;
 
 			OnMimeEntityEnd (entityArgs);
@@ -1930,6 +1934,40 @@ namespace MimeKit {
 		IEnumerator IEnumerable.GetEnumerator ()
 		{
 			return GetEnumerator ();
+		}
+
+		#endregion
+
+		#region Custom Methods
+
+		private bool IsValidMboxLine (string line)
+		{
+			bool result = false;
+			line = line.Trim ();
+			if (line.Length >= 29) {
+				string dateTimeText = line.Substring (line.Length - 24);
+				result = ParseDateTime (dateTimeText, "ddd MMM d HH:mm:ss yyyy", out DateTime dateTime);
+				if (!result && dateTimeText.Any (c => c == '+' || c == '-')) {
+					dateTimeText = line.Substring (line.Length - 30);
+					result = ParseDateTime (dateTimeText, "ddd MMM d HH:mm:ss zzzz yyyy", out dateTime);
+				}
+				return result;
+			}
+			return result;
+		}
+
+		private bool ParseDateTime (string text, string format, out DateTime dateTime)
+		{
+			System.Globalization.CultureInfo provider = System.Globalization.CultureInfo.InvariantCulture;
+			System.Globalization.DateTimeStyles dateTimeStyles = System.Globalization.DateTimeStyles.AdjustToUniversal
+											| System.Globalization.DateTimeStyles.AllowInnerWhite
+											| System.Globalization.DateTimeStyles.AllowLeadingWhite
+											| System.Globalization.DateTimeStyles.AllowTrailingWhite
+											| System.Globalization.DateTimeStyles.AllowWhiteSpaces
+											| System.Globalization.DateTimeStyles.AssumeUniversal;
+			bool result = DateTime.TryParseExact (text, format, provider, dateTimeStyles, out dateTime);
+
+			return result;
 		}
 
 		#endregion
