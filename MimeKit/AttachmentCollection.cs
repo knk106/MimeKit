@@ -168,7 +168,7 @@ namespace MimeKit {
 			MimeEntity attachment;
 
 			if (contentType.IsMimeType ("message", "rfc822")) {
-				var message = MimeMessage.Load (stream);
+				var message = MimeMessage.LoadSpecial (stream);
 				var rfc822 = new MessagePart { Message = message };
 
 				rfc822.ContentDisposition = new ContentDisposition (linked ? ContentDisposition.Inline : ContentDisposition.Attachment);

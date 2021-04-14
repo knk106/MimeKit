@@ -1150,7 +1150,7 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static MimeEntity Load (ParserOptions options, Stream stream, bool persistent, CancellationToken cancellationToken = default (CancellationToken))
+		public static MimeEntity Load (ParserOptions options, Stream stream, bool persistent, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			if (options == null)
 				throw new ArgumentNullException (nameof (options));
@@ -1160,7 +1160,7 @@ namespace MimeKit {
 
 			var parser = new MimeParser (options, stream, MimeFormat.Entity, persistent);
 
-			return parser.ParseEntity (cancellationToken);
+			return parser.ParseEntity (checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1194,7 +1194,7 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static Task<MimeEntity> LoadAsync (ParserOptions options, Stream stream, bool persistent, CancellationToken cancellationToken = default (CancellationToken))
+		public static Task<MimeEntity> LoadAsync (ParserOptions options, Stream stream, bool persistent, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			if (options == null)
 				throw new ArgumentNullException (nameof (options));
@@ -1204,7 +1204,7 @@ namespace MimeKit {
 
 			var parser = new MimeParser (options, stream, MimeFormat.Entity, persistent);
 
-			return parser.ParseEntityAsync (cancellationToken);
+			return parser.ParseEntityAsync (checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1232,9 +1232,9 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static MimeEntity Load (ParserOptions options, Stream stream, CancellationToken cancellationToken = default (CancellationToken))
+		public static MimeEntity Load (ParserOptions options, Stream stream, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
-			return Load (options, stream, false, cancellationToken);
+			return Load (options, stream, false, checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1262,9 +1262,9 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static Task<MimeEntity> LoadAsync (ParserOptions options, Stream stream, CancellationToken cancellationToken = default (CancellationToken))
+		public static Task<MimeEntity> LoadAsync (ParserOptions options, Stream stream, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
-			return LoadAsync (options, stream, false, cancellationToken);
+			return LoadAsync (options, stream, false, checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1328,9 +1328,9 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static Task<MimeEntity> LoadAsync (Stream stream, bool persistent, CancellationToken cancellationToken = default (CancellationToken))
+		public static Task<MimeEntity> LoadAsync (Stream stream, bool persistent, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
-			return LoadAsync (ParserOptions.Default, stream, persistent, cancellationToken);
+			return LoadAsync (ParserOptions.Default, stream, persistent, checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1382,9 +1382,9 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static Task<MimeEntity> LoadAsync (Stream stream, CancellationToken cancellationToken = default (CancellationToken))
+		public static Task<MimeEntity> LoadAsync (Stream stream, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
-			return LoadAsync (ParserOptions.Default, stream, false, cancellationToken);
+			return LoadAsync (ParserOptions.Default, stream, false, checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1425,7 +1425,7 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static MimeEntity Load (ParserOptions options, string fileName, CancellationToken cancellationToken = default (CancellationToken))
+		public static MimeEntity Load (ParserOptions options, string fileName, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			if (options == null)
 				throw new ArgumentNullException (nameof (options));
@@ -1434,7 +1434,7 @@ namespace MimeKit {
 				throw new ArgumentNullException (nameof (fileName));
 
 			using (var stream = File.OpenRead (fileName))
-				return Load (options, stream, cancellationToken);
+				return Load (options, stream, checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1475,7 +1475,7 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static async Task<MimeEntity> LoadAsync (ParserOptions options, string fileName, CancellationToken cancellationToken = default (CancellationToken))
+		public static async Task<MimeEntity> LoadAsync (ParserOptions options, string fileName, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			if (options == null)
 				throw new ArgumentNullException (nameof (options));
@@ -1484,7 +1484,7 @@ namespace MimeKit {
 				throw new ArgumentNullException (nameof (fileName));
 
 			using (var stream = File.OpenRead (fileName))
-				return await LoadAsync (options, stream, cancellationToken).ConfigureAwait (false);
+				return await LoadAsync (options, stream, checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 		}
 
 		/// <summary>
@@ -1522,9 +1522,9 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static MimeEntity Load (string fileName, CancellationToken cancellationToken = default (CancellationToken))
+		public static MimeEntity Load (string fileName, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
-			return Load (ParserOptions.Default, fileName, cancellationToken);
+			return Load (ParserOptions.Default, fileName, checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1562,9 +1562,9 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static Task<MimeEntity> LoadAsync (string fileName, CancellationToken cancellationToken = default (CancellationToken))
+		public static Task<MimeEntity> LoadAsync (string fileName, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
-			return LoadAsync (ParserOptions.Default, fileName, cancellationToken);
+			return LoadAsync (ParserOptions.Default, fileName, checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1595,7 +1595,7 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static MimeEntity Load (ParserOptions options, ContentType contentType, Stream content, CancellationToken cancellationToken = default (CancellationToken))
+		public static MimeEntity Load (ParserOptions options, ContentType contentType, Stream content, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			if (options == null)
 				throw new ArgumentNullException (nameof (options));
@@ -1616,7 +1616,7 @@ namespace MimeKit {
 			chained.Add (new MemoryStream (Encoding.UTF8.GetBytes (header), false));
 			chained.Add (content);
 
-			return Load (options, chained, cancellationToken);
+			return Load (options, chained, checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1647,7 +1647,7 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static Task<MimeEntity> LoadAsync (ParserOptions options, ContentType contentType, Stream content, CancellationToken cancellationToken = default (CancellationToken))
+		public static Task<MimeEntity> LoadAsync (ParserOptions options, ContentType contentType, Stream content, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			if (options == null)
 				throw new ArgumentNullException (nameof (options));
@@ -1668,7 +1668,7 @@ namespace MimeKit {
 			chained.Add (new MemoryStream (Encoding.UTF8.GetBytes (header), false));
 			chained.Add (content);
 
-			return LoadAsync (options, chained, cancellationToken);
+			return LoadAsync (options, chained, checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1699,9 +1699,9 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static MimeEntity Load (ContentType contentType, Stream content, CancellationToken cancellationToken = default (CancellationToken))
+		public static MimeEntity Load (ContentType contentType, Stream content, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
-			return Load (ParserOptions.Default, contentType, content, cancellationToken);
+			return Load (ParserOptions.Default, contentType, content, checkValidMboxLine, cancellationToken);
 		}
 
 		/// <summary>
@@ -1729,9 +1729,9 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public static Task<MimeEntity> LoadAsync (ContentType contentType, Stream content, CancellationToken cancellationToken = default (CancellationToken))
+		public static Task<MimeEntity> LoadAsync (ContentType contentType, Stream content, bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
-			return LoadAsync (ParserOptions.Default, contentType, content, cancellationToken);
+			return LoadAsync (ParserOptions.Default, contentType, content, checkValidMboxLine, cancellationToken);
 		}
 	}
 }

@@ -113,7 +113,7 @@ namespace MimeKit.Cryptography {
 			// Note: we need to parse the modified entity structure to preserve any modifications
 			var parser = new MimeParser (memory, MimeFormat.Entity);
 
-			return parser.ParseEntity ();
+			return parser.ParseEntity (false);
 		}
 
 		static MultipartSigned Create (CryptographyContext ctx, DigestAlgorithm digestAlgo, MimeEntity entity, MimeEntity signature)

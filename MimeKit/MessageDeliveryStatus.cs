@@ -100,7 +100,7 @@ namespace MimeKit {
 							var parser = new MimeParser (stream, MimeFormat.Entity);
 
 							while (!parser.IsEndOfStream) {
-								var fields = parser.ParseHeaders ();
+								var fields = parser.ParseHeaders (false);
 								groups.Add (fields);
 							}
 						}

@@ -81,7 +81,7 @@ namespace MimeKit {
 						fields = new HeaderList ();
 					} else {
 						using (var stream = Content.Open ()) {
-							fields = HeaderList.Load (stream);
+							fields = HeaderList.Load (stream, false);
 						}
 					}
 

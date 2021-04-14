@@ -78,7 +78,7 @@ namespace MimeKit {
 			return bomIndex == 0 || bomIndex == UTF8ByteOrderMark.Length;
 		}
 
-		async Task StepMboxMarkerAsync (CancellationToken cancellationToken)
+		async Task StepMboxMarkerAsync (bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			bool complete;
 			int left = 0;
@@ -97,7 +97,7 @@ namespace MimeKit {
 
 				unsafe {
 					fixed (byte* inbuf = input) {
-						complete = StepMboxMarker (inbuf, ref left);
+						complete = StepMboxMarker (inbuf, checkValidMboxLine, ref left);
 					}
 				}
 			} while (!complete);
@@ -179,7 +179,7 @@ namespace MimeKit {
 			} while (true);
 		}
 
-		async Task<MimeParserState> StepAsync (CancellationToken cancellationToken)
+		async Task<MimeParserState> StepAsync (bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			switch (state) {
 			case MimeParserState.Initialized:
@@ -191,7 +191,7 @@ namespace MimeKit {
 				state = format == MimeFormat.Mbox ? MimeParserState.MboxMarker : MimeParserState.MessageHeaders;
 				break;
 			case MimeParserState.MboxMarker:
-				await StepMboxMarkerAsync (cancellationToken).ConfigureAwait (false);
+				await StepMboxMarkerAsync (checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 				break;
 			case MimeParserState.MessageHeaders:
 			case MimeParserState.Headers:
@@ -276,7 +276,7 @@ namespace MimeKit {
 				content.Dispose ();
 		}
 
-		async Task ConstructMessagePartAsync (MessagePart rfc822, MimeEntityEndEventArgs args, int depth, CancellationToken cancellationToken)
+		async Task ConstructMessagePartAsync (MessagePart rfc822, MimeEntityEndEventArgs args, int depth, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			var beginOffset = GetOffset (inputIndex);
 			var beginLineNumber = lineNumber;
@@ -320,7 +320,7 @@ namespace MimeKit {
 
 			// parse the headers...
 			state = MimeParserState.MessageHeaders;
-			if (await StepAsync (cancellationToken).ConfigureAwait (false) == MimeParserState.Error) {
+			if (await StepAsync (checkValidMboxLine, cancellationToken).ConfigureAwait (false) == MimeParserState.Error) {
 				// Note: this either means that StepHeaders() found the end of the stream
 				// or an invalid header field name at the start of the message headers,
 				// which likely means that this is not a valid MIME stream?
@@ -355,9 +355,9 @@ namespace MimeKit {
 			message.Body = entity;
 
 			if (entity is Multipart)
-				await ConstructMultipartAsync ((Multipart) entity, entityArgs, depth + 1, cancellationToken).ConfigureAwait (false);
+				await ConstructMultipartAsync ((Multipart) entity, entityArgs, depth + 1, checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 			else if (entity is MessagePart)
-				await ConstructMessagePartAsync ((MessagePart) entity, entityArgs, depth + 1, cancellationToken).ConfigureAwait (false);
+				await ConstructMessagePartAsync ((MessagePart) entity, entityArgs, depth + 1, checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 			else
 				await ConstructMimePartAsync ((MimePart) entity, entityArgs, cancellationToken).ConfigureAwait (false);
 
@@ -397,7 +397,7 @@ namespace MimeKit {
 			}
 		}
 
-		async Task MultipartScanSubpartsAsync (Multipart multipart, int depth, CancellationToken cancellationToken)
+		async Task MultipartScanSubpartsAsync (Multipart multipart, int depth, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			//var beginOffset = GetOffset (inputIndex);
 
@@ -417,7 +417,7 @@ namespace MimeKit {
 
 				// parse the headers
 				state = MimeParserState.Headers;
-				if (await StepAsync (cancellationToken).ConfigureAwait (false) == MimeParserState.Error) {
+				if (await StepAsync (checkValidMboxLine, cancellationToken).ConfigureAwait (false) == MimeParserState.Error) {
 					boundary = BoundaryType.Eos;
 					return;
 				}
@@ -449,9 +449,9 @@ namespace MimeKit {
 				OnMimeEntityBegin (entityArgs);
 
 				if (entity is Multipart)
-					await ConstructMultipartAsync ((Multipart) entity, entityArgs, depth + 1, cancellationToken).ConfigureAwait (false);
+					await ConstructMultipartAsync ((Multipart) entity, entityArgs, depth + 1, checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 				else if (entity is MessagePart)
-					await ConstructMessagePartAsync ((MessagePart) entity, entityArgs, depth + 1, cancellationToken).ConfigureAwait (false);
+					await ConstructMessagePartAsync ((MessagePart) entity, entityArgs, depth + 1, checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 				else
 					await ConstructMimePartAsync ((MimePart) entity, entityArgs, cancellationToken).ConfigureAwait (false);
 
@@ -466,7 +466,7 @@ namespace MimeKit {
 			} while (boundary == BoundaryType.ImmediateBoundary);
 		}
 
-		async Task ConstructMultipartAsync (Multipart multipart, MimeEntityEndEventArgs args, int depth, CancellationToken cancellationToken)
+		async Task ConstructMultipartAsync (Multipart multipart, MimeEntityEndEventArgs args, int depth, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			var beginOffset = GetOffset (inputIndex);
 			var beginLineNumber = lineNumber;
@@ -490,7 +490,7 @@ namespace MimeKit {
 
 			await MultipartScanPreambleAsync (multipart, cancellationToken).ConfigureAwait (false);
 			if (boundary == BoundaryType.ImmediateBoundary)
-				await MultipartScanSubpartsAsync (multipart, depth, cancellationToken).ConfigureAwait (false);
+				await MultipartScanSubpartsAsync (multipart, depth, checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 
 			if (boundary == BoundaryType.ImmediateEndBoundary) {
 				//OnMultipartEndBoundaryBegin (multipart, GetEndOffset (inputIndex));
@@ -544,10 +544,10 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public async Task<HeaderList> ParseHeadersAsync (CancellationToken cancellationToken = default (CancellationToken))
+		public async Task<HeaderList> ParseHeadersAsync (bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			state = MimeParserState.Headers;
-			if (await StepAsync (cancellationToken).ConfigureAwait (false) == MimeParserState.Error)
+			if (await StepAsync (checkValidMboxLine, cancellationToken).ConfigureAwait (false) == MimeParserState.Error)
 				throw new FormatException ("Failed to parse headers.");
 
 			state = eos ? MimeParserState.Eos : MimeParserState.Complete;
@@ -576,7 +576,7 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public async Task<MimeEntity> ParseEntityAsync (CancellationToken cancellationToken = default (CancellationToken))
+		public async Task<MimeEntity> ParseEntityAsync (bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			// Note: if a previously parsed MimePart's content has been read,
 			// then the stream position will have moved and will need to be
@@ -589,7 +589,7 @@ namespace MimeKit {
 			state = MimeParserState.Headers;
 			toplevel = true;
 
-			if (await StepAsync (cancellationToken).ConfigureAwait (false) == MimeParserState.Error)
+			if (await StepAsync (checkValidMboxLine, cancellationToken).ConfigureAwait (false) == MimeParserState.Error)
 				throw new FormatException ("Failed to parse entity headers.");
 
 			var type = GetContentType (null);
@@ -606,9 +606,9 @@ namespace MimeKit {
 			OnMimeEntityBegin (entityArgs);
 
 			if (entity is Multipart)
-				await ConstructMultipartAsync ((Multipart) entity, entityArgs, 0, cancellationToken).ConfigureAwait (false);
+				await ConstructMultipartAsync ((Multipart) entity, entityArgs, 0, checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 			else if (entity is MessagePart)
-				await ConstructMessagePartAsync ((MessagePart) entity, entityArgs, 0, cancellationToken).ConfigureAwait (false);
+				await ConstructMessagePartAsync ((MessagePart) entity, entityArgs, 0, checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 			else
 				await ConstructMimePartAsync ((MimePart) entity, entityArgs, cancellationToken).ConfigureAwait (false);
 
@@ -643,7 +643,7 @@ namespace MimeKit {
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public async Task<MimeMessage> ParseMessageAsync (CancellationToken cancellationToken = default (CancellationToken))
+		public async Task<MimeMessage> ParseMessageAsync (bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			// Note: if a previously parsed MimePart's content has been read,
 			// then the stream position will have moved and will need to be
@@ -653,7 +653,7 @@ namespace MimeKit {
 
 			// scan the from-line if we are parsing an mbox
 			while (state != MimeParserState.MessageHeaders) {
-				switch (await StepAsync (cancellationToken).ConfigureAwait (false)) {
+				switch (await StepAsync (checkValidMboxLine, cancellationToken).ConfigureAwait (false)) {
 				case MimeParserState.Error:
 					throw new FormatException ("Failed to find mbox From marker.");
 				case MimeParserState.Eos:
@@ -665,7 +665,7 @@ namespace MimeKit {
 
 			// parse the headers
 			var beginLineNumber = lineNumber;
-			if (state < MimeParserState.Content && await StepAsync (cancellationToken).ConfigureAwait (false) == MimeParserState.Error)
+			if (state < MimeParserState.Content && await StepAsync (checkValidMboxLine, cancellationToken).ConfigureAwait (false) == MimeParserState.Error)
 				throw new FormatException ("Failed to parse message headers.");
 
 			var message = new MimeMessage (options, headers, RfcComplianceMode.Loose);
@@ -711,9 +711,9 @@ namespace MimeKit {
 			message.Body = entity;
 
 			if (entity is Multipart)
-				await ConstructMultipartAsync ((Multipart) entity, entityArgs, 0, cancellationToken).ConfigureAwait (false);
+				await ConstructMultipartAsync ((Multipart) entity, entityArgs, 0, checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 			else if (entity is MessagePart)
-				await ConstructMessagePartAsync ((MessagePart) entity, entityArgs, 0, cancellationToken).ConfigureAwait (false);
+				await ConstructMessagePartAsync ((MessagePart) entity, entityArgs, 0, checkValidMboxLine, cancellationToken).ConfigureAwait (false);
 			else
 				await ConstructMimePartAsync ((MimePart) entity, entityArgs, cancellationToken).ConfigureAwait (false);
 

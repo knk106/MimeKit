@@ -695,7 +695,7 @@ namespace MimeKit
 #endif
 		}
 
-		unsafe bool StepMboxMarker (byte* inbuf, ref int left)
+		unsafe bool StepMboxMarker (byte* inbuf, bool checkValidMboxLine, ref int left)
 		{
 			byte* inptr = inbuf + inputIndex;
 			byte* inend = inbuf + inputEnd;
@@ -734,7 +734,7 @@ namespace MimeKit
 				lineBeginOffset = GetOffset (inputIndex);
 				lineNumber++;
 
-				if (markerLength >= 5 && IsMboxMarker (start) && IsValidMboxLine (text)) {
+				if (markerLength >= 5 && IsMboxMarker (start) && (!checkValidMboxLine || IsValidMboxLine (text))) {
 					mboxMarkerOffset = GetOffset (startIndex);
 					mboxMarkerLength = markerLength;
 
@@ -752,7 +752,7 @@ namespace MimeKit
 			return false;
 		}
 
-		unsafe void StepMboxMarker (byte* inbuf, CancellationToken cancellationToken)
+		unsafe void StepMboxMarker (byte* inbuf, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			bool complete;
 			int left = 0;
@@ -769,7 +769,7 @@ namespace MimeKit
 					return;
 				}
 
-				complete = StepMboxMarker (inbuf, ref left);
+				complete = StepMboxMarker (inbuf, checkValidMboxLine, ref left);
 			} while (!complete);
 
 			state = MimeParserState.MessageHeaders;
@@ -1094,7 +1094,7 @@ namespace MimeKit
 			} while (true);
 		}
 
-		unsafe MimeParserState Step (byte* inbuf, CancellationToken cancellationToken)
+		unsafe MimeParserState Step (byte* inbuf, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			switch (state) {
 			case MimeParserState.Initialized:
@@ -1106,7 +1106,7 @@ namespace MimeKit
 				state = format == MimeFormat.Mbox ? MimeParserState.MboxMarker : MimeParserState.MessageHeaders;
 				break;
 			case MimeParserState.MboxMarker:
-				StepMboxMarker (inbuf, cancellationToken);
+				StepMboxMarker (inbuf, checkValidMboxLine, cancellationToken);
 				break;
 			case MimeParserState.MessageHeaders:
 			case MimeParserState.Headers:
@@ -1412,7 +1412,7 @@ namespace MimeKit
 				content.Dispose ();
 		}
 
-		unsafe void ConstructMessagePart (MessagePart rfc822, MimeEntityEndEventArgs args, byte* inbuf, int depth, CancellationToken cancellationToken)
+		unsafe void ConstructMessagePart (MessagePart rfc822, MimeEntityEndEventArgs args, byte* inbuf, int depth, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			var beginOffset = GetOffset (inputIndex);
 			var beginLineNumber = lineNumber;
@@ -1452,7 +1452,7 @@ namespace MimeKit
 
 			// parse the headers...
 			state = MimeParserState.MessageHeaders;
-			if (Step (inbuf, cancellationToken) == MimeParserState.Error) {
+			if (Step (inbuf, checkValidMboxLine, cancellationToken) == MimeParserState.Error) {
 				// Note: this either means that StepHeaders() found the end of the stream
 				// or an invalid header field name at the start of the message headers,
 				// which likely means that this is not a valid MIME stream?
@@ -1487,9 +1487,9 @@ namespace MimeKit
 			message.Body = entity;
 
 			if (entity is Multipart)
-				ConstructMultipart ((Multipart) entity, entityArgs, inbuf, depth + 1, cancellationToken);
+				ConstructMultipart ((Multipart) entity, entityArgs, inbuf, depth + 1, checkValidMboxLine, cancellationToken);
 			else if (entity is MessagePart)
-				ConstructMessagePart ((MessagePart) entity, entityArgs, inbuf, depth + 1, cancellationToken);
+				ConstructMessagePart ((MessagePart) entity, entityArgs, inbuf, depth + 1, checkValidMboxLine, cancellationToken);
 			else
 				ConstructMimePart ((MimePart) entity, entityArgs, inbuf, cancellationToken);
 
@@ -1529,7 +1529,7 @@ namespace MimeKit
 			}
 		}
 
-		unsafe void MultipartScanSubparts (Multipart multipart, byte* inbuf, int depth, CancellationToken cancellationToken)
+		unsafe void MultipartScanSubparts (Multipart multipart, byte* inbuf, int depth, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			//var beginOffset = GetOffset (inputIndex);
 
@@ -1549,7 +1549,7 @@ namespace MimeKit
 
 				// parse the headers
 				state = MimeParserState.Headers;
-				if (Step (inbuf, cancellationToken) == MimeParserState.Error) {
+				if (Step (inbuf, checkValidMboxLine, cancellationToken) == MimeParserState.Error) {
 					boundary = BoundaryType.Eos;
 					return;
 				}
@@ -1581,9 +1581,9 @@ namespace MimeKit
 				OnMimeEntityBegin (entityArgs);
 
 				if (entity is Multipart)
-					ConstructMultipart ((Multipart) entity, entityArgs, inbuf, depth + 1, cancellationToken);
+					ConstructMultipart ((Multipart) entity, entityArgs, inbuf, depth + 1, checkValidMboxLine, cancellationToken);
 				else if (entity is MessagePart)
-					ConstructMessagePart ((MessagePart) entity, entityArgs, inbuf, depth + 1, cancellationToken);
+					ConstructMessagePart ((MessagePart) entity, entityArgs, inbuf, depth + 1, checkValidMboxLine, cancellationToken);
 				else
 					ConstructMimePart ((MimePart) entity, entityArgs, inbuf, cancellationToken);
 
@@ -1611,7 +1611,7 @@ namespace MimeKit
 			bounds.RemoveAt (0);
 		}
 
-		unsafe void ConstructMultipart (Multipart multipart, MimeEntityEndEventArgs args, byte* inbuf, int depth, CancellationToken cancellationToken)
+		unsafe void ConstructMultipart (Multipart multipart, MimeEntityEndEventArgs args, byte* inbuf, int depth, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			var beginOffset = GetOffset (inputIndex);
 			var beginLineNumber = lineNumber;
@@ -1635,7 +1635,7 @@ namespace MimeKit
 
 			MultipartScanPreamble (multipart, inbuf, cancellationToken);
 			if (boundary == BoundaryType.ImmediateBoundary)
-				MultipartScanSubparts (multipart, inbuf, depth, cancellationToken);
+				MultipartScanSubparts (multipart, inbuf, depth, checkValidMboxLine, cancellationToken);
 
 			if (boundary == BoundaryType.ImmediateEndBoundary) {
 				//OnMultipartEndBoundaryBegin (multipart, GetEndOffset (inputIndex));
@@ -1668,10 +1668,10 @@ namespace MimeKit
 				boundary = BoundaryType.ImmediateBoundary;
 		}
 
-		unsafe HeaderList ParseHeaders (byte* inbuf, CancellationToken cancellationToken)
+		unsafe HeaderList ParseHeaders (byte* inbuf, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			state = MimeParserState.Headers;
-			if (Step (inbuf, cancellationToken) == MimeParserState.Error)
+			if (Step (inbuf, checkValidMboxLine, cancellationToken) == MimeParserState.Error)
 				throw new FormatException ("Failed to parse headers.");
 
 			state = eos ? MimeParserState.Eos : MimeParserState.Complete;
@@ -1700,16 +1700,16 @@ namespace MimeKit
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public HeaderList ParseHeaders (CancellationToken cancellationToken = default (CancellationToken))
+		public HeaderList ParseHeaders (bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			unsafe {
 				fixed (byte* inbuf = input) {
-					return ParseHeaders (inbuf, cancellationToken);
+					return ParseHeaders (inbuf, checkValidMboxLine, cancellationToken);
 				}
 			}
 		}
 
-		unsafe MimeEntity ParseEntity (byte* inbuf, CancellationToken cancellationToken)
+		unsafe MimeEntity ParseEntity (byte* inbuf, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			// Note: if a previously parsed MimePart's content has been read,
 			// then the stream position will have moved and will need to be
@@ -1722,7 +1722,7 @@ namespace MimeKit
 			state = MimeParserState.Headers;
 			toplevel = true;
 
-			if (Step (inbuf, cancellationToken) == MimeParserState.Error)
+			if (Step (inbuf, checkValidMboxLine, cancellationToken) == MimeParserState.Error)
 				throw new FormatException ("Failed to parse entity headers.");
 
 			var type = GetContentType (null);
@@ -1739,9 +1739,9 @@ namespace MimeKit
 			OnMimeEntityBegin (entityArgs);
 
 			if (entity is Multipart)
-				ConstructMultipart ((Multipart) entity, entityArgs, inbuf, 0, cancellationToken);
+				ConstructMultipart ((Multipart) entity, entityArgs, inbuf, 0, checkValidMboxLine, cancellationToken);
 			else if (entity is MessagePart)
-				ConstructMessagePart ((MessagePart) entity, entityArgs, inbuf, 0, cancellationToken);
+				ConstructMessagePart ((MessagePart) entity, entityArgs, inbuf, 0, checkValidMboxLine, cancellationToken);
 			else
 				ConstructMimePart ((MimePart) entity, entityArgs, inbuf, cancellationToken);
 
@@ -1776,16 +1776,16 @@ namespace MimeKit
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public MimeEntity ParseEntity (CancellationToken cancellationToken = default (CancellationToken))
+		public MimeEntity ParseEntity (bool checkValidMboxLine, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			unsafe {
 				fixed (byte* inbuf = input) {
-					return ParseEntity (inbuf, cancellationToken);
+					return ParseEntity (inbuf, checkValidMboxLine, cancellationToken);
 				}
 			}
 		}
 
-		unsafe MimeMessage ParseMessage (byte* inbuf, CancellationToken cancellationToken)
+		unsafe MimeMessage ParseMessage (byte* inbuf, bool checkValidMboxLine, CancellationToken cancellationToken)
 		{
 			// Note: if a previously parsed MimePart's content has been read,
 			// then the stream position will have moved and will need to be
@@ -1795,7 +1795,7 @@ namespace MimeKit
 
 			// scan the from-line if we are parsing an mbox
 			while (state != MimeParserState.MessageHeaders) {
-				switch (Step (inbuf, cancellationToken)) {
+				switch (Step (inbuf, checkValidMboxLine, cancellationToken)) {
 				case MimeParserState.Error:
 					throw new FormatException ("Failed to find mbox From marker.");
 				case MimeParserState.Eos:
@@ -1807,7 +1807,8 @@ namespace MimeKit
 
 			// parse the headers
 			var beginLineNumber = lineNumber;
-			if (state < MimeParserState.Content && Step (inbuf, cancellationToken) == MimeParserState.Error)
+
+			if (checkValidMboxLine && state < MimeParserState.Content && Step (inbuf, checkValidMboxLine, cancellationToken) == MimeParserState.Error)
 				throw new FormatException ("Failed to parse message headers.");
 
 			var message = new MimeMessage (options, headers, RfcComplianceMode.Loose);
@@ -1852,9 +1853,9 @@ namespace MimeKit
 			message.Body = entity;
 
 			if (entity is Multipart multipart)
-				ConstructMultipart (multipart, entityArgs, inbuf, 0, cancellationToken);
+				ConstructMultipart (multipart, entityArgs, inbuf, 0, checkValidMboxLine, cancellationToken);
 			else if (entity is MessagePart rfc822)
-				ConstructMessagePart (rfc822, entityArgs, inbuf, 0, cancellationToken);
+				ConstructMessagePart (rfc822, entityArgs, inbuf, 0, checkValidMboxLine, cancellationToken);
 			else
 				ConstructMimePart ((MimePart) entity, entityArgs, inbuf, cancellationToken);
 
@@ -1894,11 +1895,11 @@ namespace MimeKit
 		/// <exception cref="System.IO.IOException">
 		/// An I/O error occurred.
 		/// </exception>
-		public MimeMessage ParseMessage (CancellationToken cancellationToken = default (CancellationToken))
+		public MimeMessage ParseMessage (bool checkValidMboxLine = true, CancellationToken cancellationToken = default (CancellationToken))
 		{
 			unsafe {
 				fixed (byte* inbuf = input) {
-					return ParseMessage (inbuf, cancellationToken);
+					return ParseMessage (inbuf, checkValidMboxLine, cancellationToken);
 				}
 			}
 		}
