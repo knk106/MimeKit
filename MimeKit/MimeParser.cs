@@ -708,8 +708,13 @@ namespace MimeKit
 
 				// scan for the end of the line
 				string text = "";
+				char? prevChr = null;
 				while (*inptr != (byte) '\n') {
-					text += (char) *inptr;
+					var chr = (char) *inptr;
+					if (prevChr == '\r' && chr != '\n')
+						break;
+					text += chr;
+					prevChr = chr;
 					inptr++;
 				}
 
