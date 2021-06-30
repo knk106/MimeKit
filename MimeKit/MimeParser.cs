@@ -866,7 +866,7 @@ namespace MimeKit
 							// to contain spaces.
 							if (IsBlank (*inptr)) {
 								blank = true;
-							} else if (blank || IsControl (*inptr)) {
+							} else if (IsControl (*inptr)) {
 								valid = false;
 								break;
 							}
@@ -904,9 +904,9 @@ namespace MimeKit
 								if (toplevel && (length < 5 || !IsMboxMarker (start, true))) {
 									// not a From-line...
 									inputIndex = (int) (start - inbuf);
-									state = MimeParserState.Error;
+									//state = MimeParserState.Error;
 									headerIndex = 0;
-									return false;
+									//return false;
 								}
 							} else if (toplevel && state == MimeParserState.Headers) {
 								inputIndex = (int) (start - inbuf);
